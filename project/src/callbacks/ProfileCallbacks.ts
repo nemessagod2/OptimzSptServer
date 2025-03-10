@@ -20,21 +20,18 @@ import { HttpResponseUtil } from "@spt/utils/HttpResponseUtil";
 import { TimeUtil } from "@spt/utils/TimeUtil";
 import { inject, injectable } from "tsyringe";
 
-/** Handle profile related client events */
 @injectable()
 export class ProfileCallbacks {
     constructor(
-        @inject("HttpResponseUtil") protected httpResponse: HttpResponseUtil,
-        @inject("TimeUtil") protected timeUtil: TimeUtil,
-        @inject("ProfileController") protected profileController: ProfileController,
-        @inject("ProfileHelper") protected profileHelper: ProfileHelper,
+        @inject("HttpResponseUtil") private readonly httpResponse: HttpResponseUtil,
+        @inject("TimeUtil") private readonly timeUtil: TimeUtil,
+        @inject("ProfileController") private readonly profileController: ProfileController,
+        @inject("ProfileHelper") private readonly profileHelper: ProfileHelper,
     ) {}
 
-    /**
-     * Handle client/game/profile/create
-     */
+    // Создание профиля
     public createProfile(
-        url: string,
+        _url: string,
         info: IProfileCreateRequestData,
         sessionID: string,
     ): IGetBodyResponseData<ICreateProfileResponse> {
@@ -42,142 +39,133 @@ export class ProfileCallbacks {
         return this.httpResponse.getBody({ uid: id });
     }
 
-    /**
-     * Handle client/game/profile/list
-     * Get the complete player profile (scav + pmc character)
-     */
-    public getProfileData(url: string, info: IEmptyRequestData, sessionID: string): IGetBodyResponseData<IPmcData[]> {
+    // Получение полного профиля игрока
+    public getProfileData(
+        _url: string,
+        _info: IEmptyRequestData,
+        sessionID: string,
+    ): IGetBodyResponseData<IPmcData[]> {
         return this.httpResponse.getBody(this.profileController.getCompleteProfile(sessionID));
     }
 
-    /**
-     * Handle client/game/profile/savage/regenerate
-     * Handle the creation of a scav profile for player
-     * Occurs post-raid and when profile first created immediately after character details are confirmed by player
-     * @param url
-     * @param info empty
-     * @param sessionID Session id
-     * @returns Profile object
-     */
-    public regenerateScav(url: string, info: IEmptyRequestData, sessionID: string): IGetBodyResponseData<IPmcData[]> {
+    // Регенерация профиля скива
+    public regenerateScav(
+        _url: string,
+        _info: IEmptyRequestData,
+        sessionID: string,
+    ): IGetBodyResponseData<IPmcData[]> {
         return this.httpResponse.getBody([this.profileController.generatePlayerScav(sessionID)]);
     }
 
-    /**
-     * Handle client/game/profile/voice/change event
-     */
-    public changeVoice(url: string, info: IProfileChangeVoiceRequestData, sessionID: string): INullResponseData {
+    // Смена голоса
+    public changeVoice(
+        _url: string,
+        info: IProfileChangeVoiceRequestData,
+        sessionID: string,
+    ): INullResponseData {
         this.profileController.changeVoice(info, sessionID);
         return this.httpResponse.nullResponse();
     }
 
-    /**
-     * Handle client/game/profile/nickname/change event
-     * Client allows player to adjust their profile name
-     */
+    // Смена никнейма
     public changeNickname(
-        url: string,
+        _url: string,
         info: IProfileChangeNicknameRequestData,
         sessionID: string,
     ): IGetBodyResponseData<any> {
-        const output = this.profileController.changeNickname(info, sessionID);
+        const result = this.profileController.changeNickname(info, sessionID);
 
-        if (output === "taken") {
-            return this.httpResponse.getBody(undefined, 255, "The nickname is already in use");
+        switch (result) {
+            case "taken":
+                return this.httpResponse.getBody(undefined, 255, "The nickname is already in use");
+            case "tooshort":
+                return this.httpResponse.getBody(undefined, 1, "The nickname is too short");
+            default:
+                return this.httpResponse.getBody({ 
+                    status: 0, 
+                    nicknamechangedate: this.timeUtil.getTimestamp() 
+                });
         }
-
-        if (output === "tooshort") {
-            return this.httpResponse.getBody(undefined, 1, "The nickname is too short");
-        }
-
-        return this.httpResponse.getBody({ status: 0, nicknamechangedate: this.timeUtil.getTimestamp() });
     }
 
-    /**
-     * Handle client/game/profile/nickname/validate
-     */
+    // Валидация никнейма
     public validateNickname(
-        url: string,
+        _url: string,
         info: IValidateNicknameRequestData,
         sessionID: string,
     ): IGetBodyResponseData<any> {
-        const output = this.profileController.validateNickname(info, sessionID);
+        const result = this.profileController.validateNickname(info, sessionID);
 
-        if (output === "taken") {
-            return this.httpResponse.getBody(undefined, 255, "225 - ");
+        switch (result) {
+            case "taken":
+                return this.httpResponse.getBody(undefined, 255, "225 - ");
+            case "tooshort":
+                return this.httpResponse.getBody(undefined, 256, "256 - ");
+            default:
+                return this.httpResponse.getBody({ status: "ok" });
         }
-
-        if (output === "tooshort") {
-            return this.httpResponse.getBody(undefined, 256, "256 - ");
-        }
-
-        return this.httpResponse.getBody({ status: "ok" });
     }
 
-    /**
-     * Handle client/game/profile/nickname/reserved
-     */
-    public getReservedNickname(url: string, info: IEmptyRequestData, sessionID: string): IGetBodyResponseData<string> {
+    // Получение зарезервированного никнейма
+    public getReservedNickname(
+        _url: string,
+        _info: IEmptyRequestData,
+        _sessionID: string,
+    ): IGetBodyResponseData<string> {
         return this.httpResponse.getBody("SPTarkov");
     }
 
-    /**
-     * Handle client/profile/status
-     * Called when creating a character when choosing a character face/voice
-     */
+    // Получение статуса профиля
     public getProfileStatus(
-        url: string,
-        info: IEmptyRequestData,
+        _url: string,
+        _info: IEmptyRequestData,
         sessionID: string,
     ): IGetBodyResponseData<IGetProfileStatusResponseData> {
         return this.httpResponse.getBody(this.profileController.getProfileStatus(sessionID));
     }
 
-    /**
-     * Handle client/profile/view
-     * Called when viewing another players profile
-     */
+    // Просмотр профиля другого игрока
     public getOtherProfile(
-        url: string,
+        _url: string,
         request: IGetOtherProfileRequest,
         sessionID: string,
     ): IGetBodyResponseData<IGetOtherProfileResponse> {
         return this.httpResponse.getBody(this.profileController.getOtherProfile(sessionID, request));
     }
 
-    /**
-     * Handle client/profile/settings
-     */
+    // Получение настроек профиля
     public getProfileSettings(
-        url: string,
+        _url: string,
         info: IGetProfileSettingsRequest,
         sessionId: string,
     ): IGetBodyResponseData<boolean> {
         return this.httpResponse.getBody(this.profileController.setChosenProfileIcon(sessionId, info));
     }
 
-    /**
-     * Handle client/game/profile/search
-     */
+    // Поиск друзей
     public searchFriend(
-        url: string,
+        _url: string,
         info: ISearchFriendRequestData,
         sessionID: string,
     ): IGetBodyResponseData<ISearchFriendResponse[]> {
         return this.httpResponse.getBody(this.profileController.getFriends(info, sessionID));
     }
 
-    /**
-     * Handle launcher/profile/info
-     */
-    public getMiniProfile(url: string, info: IGetMiniProfileRequestData, sessionID: string): string {
+    // Получение мини-профиля
+    public getMiniProfile(
+        _url: string,
+        info: IGetMiniProfileRequestData,
+        sessionID: string,
+    ): string {
         return this.httpResponse.noBody(this.profileController.getMiniProfile(sessionID));
     }
 
-    /**
-     * Handle /launcher/profiles
-     */
-    public getAllMiniProfiles(url: string, info: IEmptyRequestData, sessionID: string): string {
+    // Получение всех мини-профилей
+    public getAllMiniProfiles(
+        _url: string,
+        _info: IEmptyRequestData,
+        _sessionID: string,
+    ): string {
         return this.httpResponse.noBody(this.profileController.getMiniProfiles());
     }
 }
